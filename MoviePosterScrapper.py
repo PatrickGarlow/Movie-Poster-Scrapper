@@ -9,13 +9,15 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
 import urllib
 import requests
-from PyQt5.QtWidgets import QFileDialog
+from PyQt5.QtWidgets import QFileDialog, QAction, QDialog, QApplication
+from PyQt5.uic import loadUi
 from bs4 import BeautifulSoup
 import csv
 import sys
 import time
 import PyPDF2
 import xlrd
+import xlsxwriter
 
 class Result_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -110,8 +112,13 @@ class MoviePosterScrapper_MainWindow(object):
     def getFormatOut(self):
         return self.comboFormatOut.currentText()
 
-    def getfile(self):
-        pass
+
+    def browseFiles(self):
+        fname = QFileDialog.getOpenFileName()
+        self.file_name = fname[0]
+        self.buttonChooseFile.setText(fname[0])
+    def getFileName(self):
+        return self.file_name
 
     def startMultiple(self):
         if self.getFormatOut() == "Format" or self.getTypeIn() == "File Type" or self.getTypeOut() == "File Type":
@@ -121,36 +128,80 @@ class MoviePosterScrapper_MainWindow(object):
             out_Type = self.getTypeOut()
             out_Format = self.getFormatOut()
             titles_list = []
-            file_in = ""
-            if self.getTypeIn() == ".txt":
-                rd = open(file_in, "r")
+            if self.getTypeIn() == ".txt": #working
+                rd = open(self.getFileName(), "r")
                 for line in rd:
-                    titles_list.append(line)
-            elif self.getTypeIn() == ".xlsx":
-                loc = file_in
+                    titles_list.append(line.replace("\n",""))
+            elif self.getTypeIn() == ".xlsx": #working
+                loc = self.getFileName()
                 wb = xlrd.open_workbook(loc)
                 sheet = wb.sheet_by_index(0)
                 sheet.cell_value(0, 0)
                 for i in range(sheet.nrows):
                     titles_list.append(sheet.cell_value(i, 0))
-            elif self.getTypeIn() == ".csv":
-                rd = csv.reader(fd, delimiter=",", quotechar='"')
-                for row in rd:
-                    titles_list.append(row)
-            elif self.getTypeIn() == ".tsv":
-                rd = csv.reader(fd, delimiter="\t", quotechar='"')
-                for row in rd:
-                    titles_list.append(row)
-            elif self.getTypeIn() == ".pdf":
-                pdfFileObj = open(file_in, 'rb')
-                pdfReader = PyPDF2.PdfFileReader(pdfFileObj)
-                num = pdfReader.numPages
-                for x in range(num):
-                    pageObj = pdfReader.getPage(x)
-                    print(pageObj.extractText())
-            print(titles_list)
+            elif self.getTypeIn() == ".csv": #working
+                with open(self.getFileName()) as fd:
+                    rd = csv.reader(fd, delimiter=",", quotechar='"')
+                    for row in rd:
+                        titles_list.append(row)
+            elif self.getTypeIn() == ".tsv": #working
+                with open(self.getFileName()) as fd:
+                    rd = csv.reader(fd, delimiter="\t", quotechar='"')
+                    for row in rd:
+                        titles_list.append(row)
+
+            count = 0
+            out_File = "MoviePosters" + out_Type
+
+            if out_Type == ".xlsx":
+                f = xlsxwriter.Workbook(out_File)
+                worksheet = f.add_worksheet()
+            else:
+                f = open(out_File, "w")
+
+
+            for title in titles_list:
+                movie_title = title[0]
+                poster_url2 = scrapper(movie_title)
+                poster_url2 += "\n"
+
+
+                if out_Format == "Movie Title & Link":
+                    if out_Type == ".xlsx":
+                        worksheet.write(count, 0, movie_title)
+                        worksheet.write(count, 1, poster_url2)
+                    elif out_Type == ".txt":
+                        text = movie_title + "|" + poster_url2
+                        f.write(text)
+                    elif out_Type == ".tsv":
+                        text = movie_title + "\t" + poster_url2
+                        f.write(text)
+                    elif out_Type == ".csv":
+                        text = movie_title + "," + poster_url2
+                        f.write(text)
+                else:
+                    if out_Type == ".xlsx":
+                        worksheet.write(count, 0, poster_url2)
+                    else:
+                        f = open(out_File, "w")
+                        f.write(poster_url2)
+                count += 1
+            f.close()
+
+    def startSingle(self):
+        app = QApplication(sys.argv)
+        title = self.lineEditSingleIn.text()
+        #poster_url = scrapper(title)
+        MainWindow = QtWidgets.QMainWindow()
+        ui2 = Result_MainWindow()
+        ui2.setupUi(MainWindow)
+        MainWindow.show()
+        sys.exit(app.exec_())
+
 
     def setupUi(self, MainWindow):
+
+        self.file_name = ""
         MainWindow.setObjectName("MainWindow")
         MainWindow.resize(451, 279)
         self.centralwidget = QtWidgets.QWidget(MainWindow)
@@ -180,19 +231,24 @@ class MoviePosterScrapper_MainWindow(object):
         font.setPointSize(12)
         self.labelSingleTitle.setFont(font)
         self.labelSingleTitle.setObjectName("labelSingleTitle")
+
         self.buttonSingleSearch = QtWidgets.QPushButton(self.tabSingle)
         self.buttonSingleSearch.setGeometry(QtCore.QRect(340, 40, 93, 28))
         self.buttonSingleSearch.setObjectName("buttonSingleSearch")
         self.buttonSingleSearch.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+        self.buttonSingleSearch.clicked.connect(self.startSingle)
 
         self.tabWidget.addTab(self.tabSingle, "")
         self.tabMultiple = QtWidgets.QWidget()
         self.tabMultiple.setObjectName("tabMultiple")
+
+
         self.buttonChooseFile = QtWidgets.QPushButton(self.tabMultiple)
         self.buttonChooseFile.setGeometry(QtCore.QRect(20, 50, 93, 28))
         self.buttonChooseFile.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
         self.buttonChooseFile.setObjectName("buttonChooseFile")
-        self.buttonChooseFile.clicked.connect(self.getfile)
+        self.buttonChooseFile.clicked.connect(self.browseFiles)
+
         self.labelMultipleInput = QtWidgets.QLabel(self.tabMultiple)
         self.labelMultipleInput.setGeometry(QtCore.QRect(20, 10, 111, 31))
         font = QtGui.QFont()
@@ -207,12 +263,10 @@ class MoviePosterScrapper_MainWindow(object):
         self.comboFileTypeIn.addItem("")
         self.comboFileTypeIn.addItem("")
         self.comboFileTypeIn.addItem("")
-        self.comboFileTypeIn.addItem("")
         self.comboFileTypeIn.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
         self.comboFileTypeOut = QtWidgets.QComboBox(self.tabMultiple)
         self.comboFileTypeOut.setGeometry(QtCore.QRect(20, 120, 93, 28))
         self.comboFileTypeOut.setObjectName("comboFileTypeOut")
-        self.comboFileTypeOut.addItem("")
         self.comboFileTypeOut.addItem("")
         self.comboFileTypeOut.addItem("")
         self.comboFileTypeOut.addItem("")
@@ -278,14 +332,12 @@ class MoviePosterScrapper_MainWindow(object):
         self.comboFileTypeIn.setItemText(2, _translate("MainWindow", ".xlsx"))
         self.comboFileTypeIn.setItemText(3, _translate("MainWindow", ".csv"))
         self.comboFileTypeIn.setItemText(4, _translate("MainWindow", ".tsv"))
-        self.comboFileTypeIn.setItemText(5, _translate("MainWindow", ".pdf"))
 
         self.comboFileTypeOut.setItemText(0, _translate("MainWindow", "File Type"))
         self.comboFileTypeOut.setItemText(1, _translate("MainWindow", ".txt"))
         self.comboFileTypeOut.setItemText(2, _translate("MainWindow", ".xlsx"))
         self.comboFileTypeOut.setItemText(3, _translate("MainWindow", ".csv"))
         self.comboFileTypeOut.setItemText(4, _translate("MainWindow", ".tsv"))
-        self.comboFileTypeOut.setItemText(5, _translate("MainWindow", ".pdf"))
 
         self.comboFormatOut.setItemText(0, _translate("MainWindow", "Format"))
         self.comboFormatOut.setItemText(1, _translate("MainWindow", "Link"))
@@ -294,7 +346,7 @@ class MoviePosterScrapper_MainWindow(object):
         self.labelMultipleOutput.setText(_translate("MainWindow", "Output File"))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tabMultiple), _translate("MainWindow", "Multiple Movies"))
 
-app = QtWidgets.QApplication(sys.argv)
+app = QApplication(sys.argv)
 MainWindow = QtWidgets.QMainWindow()
 ui = MoviePosterScrapper_MainWindow()
 ui.setupUi(MainWindow)
