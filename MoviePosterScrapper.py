@@ -10,14 +10,12 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 import urllib
 import requests
 from PyQt5.QtWidgets import QFileDialog, QAction, QDialog, QApplication
-from PyQt5.uic import loadUi
 from bs4 import BeautifulSoup
 import csv
 import sys
-import time
-import PyPDF2
 import xlrd
 import xlsxwriter
+import pyperclip
 
 class Result_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -31,18 +29,24 @@ class Result_MainWindow(object):
         font.setPointSize(16)
         self.labelMovieTitle.setFont(font)
         self.labelMovieTitle.setObjectName("labelMovieTitle")
-        self.labelMoviePassword = QtWidgets.QLabel(self.centralwidget)
-        self.labelMoviePassword.setGeometry(QtCore.QRect(10, 50, 331, 491))
+        self.labelMoviePoster = QtWidgets.QLabel(self.centralwidget)
+        self.labelMoviePoster.setGeometry(QtCore.QRect(10, 50, 331, 491))
         font = QtGui.QFont()
         font.setPointSize(1)
-        self.labelMoviePassword.setFont(font)
-        self.labelMoviePassword.setObjectName("labelMoviePassword")
+        self.labelMoviePoster.setFont(font)
+        self.labelMoviePoster.setObjectName("labelMoviePoster")
         self.buttonDownload = QtWidgets.QPushButton(self.centralwidget)
         self.buttonDownload.setGeometry(QtCore.QRect(10, 580, 341, 51))
         self.buttonDownload.setObjectName("buttonDownload")
+        self.buttonDownload.clicked.connect(self.download)
+        self.buttonDownload.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+
         self.buttonCopyLink = QtWidgets.QPushButton(self.centralwidget)
         self.buttonCopyLink.setGeometry(QtCore.QRect(250, 550, 101, 28))
         self.buttonCopyLink.setObjectName("buttonCopyLink")
+        self.buttonCopyLink.clicked.connect(self.copy)
+        self.buttonCopyLink.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+
         self.labelMovieLink = QtWidgets.QLabel(self.centralwidget)
         self.labelMovieLink.setGeometry(QtCore.QRect(10, 550, 231, 31))
         self.labelMovieLink.setObjectName("labelMovieLink")
@@ -62,8 +66,30 @@ class Result_MainWindow(object):
         _translate = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "Result"))
         self.labelMovieTitle.setText(_translate("MainWindow", "Movie Title"))
-        self.labelMoviePassword.setText(_translate("MainWindow", "TextLabel"))
+        self.labelMoviePoster.setText(_translate("MainWindow", "MoviePoster"))
         self.buttonDownload.setText(_translate("MainWindow", "Download"))
+        self.buttonCopyLink.setText(_translate("MainWindow", "Copy"))
+
+
+    def displayMovie(self, posterLink, movieTitle):
+        self.labelMovieLink.setText(posterLink)
+        self.labelMovieTitle.setText(movieTitle)
+        data = urllib.request.urlopen(posterLink).read()
+        image = QtGui.QImage()
+        image.loadFromData(data)
+
+        self.labelMoviePoster.setPixmap(QtGui.QPixmap(image).scaled(self.labelMoviePoster.width(),self.labelMoviePoster.height()))
+
+    def copy(self):
+        pyperclip.copy(self.labelMovieLink.text())
+
+    def download(self):
+        img_data = requests.get(self.labelMovieLink.text()).content
+        imageName = str(self.labelMovieTitle.text()) + "_Image.png"
+        print(imageName)
+        with open(imageName, 'wb') as handler:
+            handler.write(img_data)
+
 def scrapper(input_string):
     poster_url2 = "/media/movie_posters/default.png"
     USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.14; rv:65.0) Gecko/20100101 Firefox/65.0"
@@ -98,12 +124,9 @@ def scrapper(input_string):
     except:
         poster_url2 = "/media/movie_posters/default.png"
     return poster_url2
-class MoviePosterScrapper_MainWindow(object):
+class MoviePosterScrapper_MainWindow(QtWidgets.QMainWindow):
     def getSingleTitle(self):
         return self.lineEditSingleIn
-    def startSinglePoster(self):
-        #opens new window
-        pass
 
     def getTypeIn(self):
         return self.comboFileTypeIn.currentText()
@@ -189,15 +212,15 @@ class MoviePosterScrapper_MainWindow(object):
             f.close()
 
     def startSingle(self):
-        app = QApplication(sys.argv)
         title = self.lineEditSingleIn.text()
-        #poster_url = scrapper(title)
-        MainWindow = QtWidgets.QMainWindow()
-        ui2 = Result_MainWindow()
-        ui2.setupUi(MainWindow)
-        MainWindow.show()
-        sys.exit(app.exec_())
+        poster_url = scrapper(title)
+        self.SecondWindow = QtWidgets.QMainWindow()
+        self.ui2 = Result_MainWindow()
+        self.ui2.setupUi(self.SecondWindow)
 
+        self.ui2.displayMovie(poster_url,title)
+
+        self.SecondWindow.show()
 
     def setupUi(self, MainWindow):
 
@@ -276,7 +299,7 @@ class MoviePosterScrapper_MainWindow(object):
         self.comboFormatOut = QtWidgets.QComboBox(self.tabMultiple)
         self.comboFormatOut.setGeometry(QtCore.QRect(130, 120, 121, 31))
         self.comboFormatOut.setObjectName("comboFormatOut")
-        self.comboFormatOut.addItem("")
+        self.comboFormatOut.addItem("Format")
         self.comboFormatOut.addItem("")
         self.comboFormatOut.addItem("")
         self.comboFormatOut.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
